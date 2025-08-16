@@ -1,0 +1,20 @@
+{
+  "name": "ollama-rag-app",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "start:ts": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
+}

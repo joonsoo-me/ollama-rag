@@ -1,0 +1,62 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "angular",
+  "contributors": [],
+  "contributorsPerLine": 7,
+  "projectName": "ollama-rag",
+  "projectOwner": "bear8203",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true,
+  "types": {
+    "code": {
+      "symbol": "💻",
+      "description": "Code",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    },
+    "doc": {
+      "symbol": "📖",
+      "description": "Documentation",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    },
+    "test": {
+      "symbol": "⚠️",
+      "description": "Tests",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    },
+    "bug": {
+      "symbol": "🐛",
+      "description": "Bug reports",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/issues?q=author%3A**contributorUsername**)"
+    },
+    "ideas": {
+      "symbol": "🤔",
+      "description": "Ideas, Planning, & Feedback",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/issues?q=author%3A**contributorUsername**)"
+    },
+    "review": {
+      "symbol": "👀",
+      "description": "Reviewed Pull Requests",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/pulls?q=is%3Apr+reviewed-by%3A**contributorUsername**)"
+    },
+    "design": {
+      "symbol": "🎨",
+      "description": "Design",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    },
+    "infra": {
+      "symbol": "🚇",
+      "description": "Infrastructure (Hosting, Build-Tools, etc)",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    },
+    "translation": {
+      "symbol": "🌍",
+      "description": "Translation",
+      "link": "[**contributorName**](https://github.com/all-contributors/all-contributors/commits?author=**contributorUsername**)"
+    }
+  }
+}

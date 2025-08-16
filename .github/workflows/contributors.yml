@@ -1,0 +1,24 @@
+name: All Contributors
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  add-contributors:
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.event.comment.body, '@all-contributors') }}
+    
+    steps:
+      - name: Checkout repository / 저장소 체크아웃
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Contribute List / 기여자 목록 업데이트
+        uses: all-contributors/action@v6.24.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: '-c .all-contributorsrc'

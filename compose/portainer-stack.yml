@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  # Gateway only; points to external n8n and Postgres via environment variables
+  app:
+    image: ghcr.io/bear8203/ollama-rag-app:latest
+    container_name: ollama-rag-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # External resources (point these to your existing services)
+      OLLAMA_URL: ${OLLAMA_URL}
+      N8N_PREPARE_URL: ${N8N_PREPARE_URL}
+      N8N_UPSERT_URL: ${N8N_UPSERT_URL}
+      # Gateway config
+      GATEWAY_BIND_PORT: ${GATEWAY_BIND_PORT:-11434}
+      RAG_TOPK: ${RAG_TOPK:-12}
+      RERANK_TOPN: ${RERANK_TOPN:-5}
+      SCORE_THRESHOLD: ${SCORE_THRESHOLD:-0.2}
+    ports:
+      - "11434:11434"
+    # depends_on is not needed when using external n8n/postgres
+
+  # ----------------------------------------------------------------------------
+  # Optional local services (uncomment if you do NOT have external instances)
+  # ----------------------------------------------------------------------------
+  # n8n:
+  #   image: n8nio/n8n:latest
+  #   container_name: n8n
+  #   restart: unless-stopped
+  #   environment:
+  #     GENERIC_TIMEZONE: Asia/Seoul
+  #     N8N_DIAGNOSTICS_ENABLED: "false"
+  #     N8N_LIGHTHOUSE_ENABLED: "false"
+  #     DB_TYPE: postgresdb
+  #     DB_POSTGRESDB_HOST: postgres
+  #     DB_POSTGRESDB_PORT: 5432
+  #     DB_POSTGRESDB_DATABASE: n8n
+  #     DB_POSTGRESDB_USER: n8n
+  #     DB_POSTGRESDB_PASSWORD: n8npass
+  #     N8N_PORT: 5678
+  #   ports:
+  #     - "5678:5678"
+  #   depends_on:
+  #     - postgres
+  #   volumes:
+  #     - n8n_data:/home/node/.n8n
+
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: n8n-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: n8n
+  #     POSTGRES_PASSWORD: n8npass
+  #     POSTGRES_DB: n8n
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql/data
+
+# volumes:
+#   n8n_data:
+#   pg_data:
+

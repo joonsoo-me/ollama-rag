@@ -1,0 +1,512 @@
+{
+  "name": "ollama-rag: n8n webhook(s) for RAG prepare + post-answer upsert (single workflow)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "rag/prepare",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedMethods": [
+            "POST"
+          ],
+          "responseContentType": "application/json"
+        }
+      },
+      "id": "1",
+      "name": "WH Prepare",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -40
+      ],
+      "webhookId": "rag-prepare-01"
+    },
+    {
+      "parameters": {
+        "functionCode": "const b = $json;\nlet query = b.query ?? (Array.isArray(b.messages) ? (b.messages[b.messages.length-1]?.content ?? '') : '');\nquery = String(query || '').slice(0, 4000);\nconst topk = Math.max(1, Math.min(64, Number(b.topk ?? 12)));\nconst topn = Math.max(1, Math.min(topk, Number(b.topn ?? 5)));\nconst score_threshold = Number(b.score_threshold ?? 0.2);\nreturn [{\n  query, topk, topn, score_threshold,\n  session_id: b.session_id ?? null,\n  thread_id: b.thread_id ?? null\n}];"
+      },
+      "id": "2",
+      "name": "Fn Prepare Defaults",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "={{ $env.TEI_EMBED_URL + '/embed' }}",
+        "jsonParameters": true,
+        "options": {},
+        "responseFormat": "json",
+        "jsonBody": "={{ { inputs: [ $json.query ] } }}"
+      },
+      "id": "3",
+      "name": "HTTP TEI Embed (query)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        760,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "={{ $env.QDRANT_URL + '/collections/' + $env.QDRANT_COLLECTION + '/points/search' }}",
+        "jsonParameters": true,
+        "options": {},
+        "responseFormat": "json",
+        "jsonBody": "={{ { vector: ($json.embeddings?.[0] || $json.data?.[0]?.embedding || []), limit: $items(\"Fn Prepare Defaults\")[0].json.topk, with_payload: true, with_vectors: false } }}"
+      },
+      "id": "4",
+      "name": "HTTP Qdrant Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        1000,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const res = $json;\nconst arr = Array.isArray(res.result) ? res.result : (res.results || []);\nconst docs = [];\nconst doc_texts = [];\nfor (const h of arr) {\n  const txt = h?.payload?.text || '';\n  if (txt) {\n    docs.push({ id: h.id ?? h?.payload?.id ?? null, text: String(txt), score: h.score ?? null });\n    doc_texts.push(String(txt));\n  }\n}\nreturn [{ docs, doc_texts }];"
+      },
+      "id": "5",
+      "name": "Fn Doc Collect",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "={{ $env.TEI_RERANK_URL + '/rerank' }}",
+        "jsonParameters": true,
+        "options": {},
+        "responseFormat": "json",
+        "jsonBody": "={{ { query: $items(\"Fn Prepare Defaults\")[0].json.query, documents: $json.doc_texts } }}"
+      },
+      "id": "6",
+      "name": "HTTP TEI Rerank",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        1440,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "7",
+      "name": "Merge Rerank+Docs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "8",
+      "name": "Merge +Defaults",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $json;\nconst docs = j.docs || [];\nconst topn = Number(j.topn ?? 5);\nconst thr = Number(j.score_threshold ?? 0.2);\nlet pairs = [];\nif (Array.isArray(j.results)) {\n  for (const r of j.results) {\n    const idx = r.index ?? r.documentIndex ?? 0;\n    const sc = r.score ?? r.relevance ?? 0;\n    const d = docs[idx];\n    if (d) pairs.push({ id: d.id, text: d.text, score: sc });\n  }\n} else if (Array.isArray(j.scores)) {\n  for (let i = 0; i < Math.min(docs.length, j.scores.length); i++) {\n    pairs.push({ id: docs[i].id, text: docs[i].text, score: j.scores[i] });\n  }\n}\npairs = pairs.filter(p => (p.score ?? 0) >= thr)\n             .sort((a,b)=> (b.score - a.score))\n             .slice(0, topn);\nreturn [{ context: pairs, docRefs: pairs.map(p=>({id:p.id, score:p.score})) }];"
+      },
+      "id": "9",
+      "name": "Fn Zip+Filter (topN, threshold)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{ { context: $json.context, docRefs: $json.docRefs } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "10",
+      "name": "Respond Prepare",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "path": "rag/upsert",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedMethods": [
+            "POST"
+          ],
+          "responseContentType": "application/json"
+        }
+      },
+      "id": "11",
+      "name": "WH Upsert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        260,
+        420
+      ],
+      "webhookId": "rag-upsert-01"
+    },
+    {
+      "parameters": {
+        "functionCode": "const b = $json;\nconst session_id = b.session_id ?? null;\nconst thread_id = b.thread_id ?? null;\nconst answer = String(b.answer || '').slice(0, 8000);\nconst question = String(b.question || '').slice(0, 4000);\nconst refs = Array.isArray(b.refs) ? b.refs : [];\nconst id = (b.id) || String(Date.now());\nreturn [{ session_id, thread_id, answer, question, refs, id }];"
+      },
+      "id": "12",
+      "name": "Fn Upsert Defaults",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        520,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "={{ $env.TEI_EMBED_URL + '/embed' }}",
+        "jsonParameters": true,
+        "options": {},
+        "responseFormat": "json",
+        "jsonBody": "={{ { inputs: [ $json.answer ] } }}"
+      },
+      "id": "13",
+      "name": "HTTP TEI Embed (answer)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        760,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "14",
+      "name": "Merge Upsert Defaults+Embed",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        980,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $json;\nconst vector = j.embeddings?.[0] || j.data?.[0]?.embedding || [];\nconst point = {\n  id: j.id,\n  vector,\n  payload: {\n    session_id: j.session_id,\n    thread_id: j.thread_id,\n    role: 'assistant',\n    ts: Date.now(),\n    text: j.answer,\n    question: j.question,\n    refs: j.refs || []\n  }\n};\nreturn [{ point }];"
+      },
+      "id": "15",
+      "name": "Fn Build Qdrant Point",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "={{ $env.QDRANT_URL + '/collections/' + $env.QDRANT_COLLECTION + '/points?wait=true' }}",
+        "jsonParameters": true,
+        "options": {},
+        "responseFormat": "json",
+        "jsonBody": "={{ { points: [ $json.point ] } }}"
+      },
+      "id": "16",
+      "name": "HTTP Qdrant Upsert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        1440,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{ { ok: true, upserted: 1 } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "17",
+      "name": "Respond Upsert",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "18",
+      "name": "Merge +Defaults (prepare)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "WH Prepare": {
+      "main": [
+        [
+          {
+            "node": "Fn Prepare Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fn Prepare Defaults": {
+      "main": [
+        [
+          {
+            "node": "HTTP TEI Embed (query)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge +Defaults (prepare)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge +Defaults",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP TEI Embed (query)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Qdrant Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Qdrant Search": {
+      "main": [
+        [
+          {
+            "node": "Fn Doc Collect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fn Doc Collect": {
+      "main": [
+        [
+          {
+            "node": "HTTP TEI Rerank",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Rerank+Docs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge +Defaults (prepare)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP TEI Rerank": {
+      "main": [
+        [
+          {
+            "node": "Merge Rerank+Docs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Rerank+Docs": {
+      "main": [
+        [
+          {
+            "node": "Merge +Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge +Defaults (prepare)": {
+      "main": [
+        [
+          {
+            "node": "Merge +Defaults",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge +Defaults": {
+      "main": [
+        [
+          {
+            "node": "Fn Zip+Filter (topN, threshold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fn Zip+Filter (topN, threshold)": {
+      "main": [
+        [
+          {
+            "node": "Respond Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH Upsert": {
+      "main": [
+        [
+          {
+            "node": "Fn Upsert Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fn Upsert Defaults": {
+      "main": [
+        [
+          {
+            "node": "HTTP TEI Embed (answer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP TEI Embed (answer)": {
+      "main": [
+        [
+          {
+            "node": "Merge Upsert Defaults+Embed",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Upsert Defaults+Embed": {
+      "main": [
+        [
+          {
+            "node": "Fn Build Qdrant Point",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fn Build Qdrant Point",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fn Build Qdrant Point": {
+      "main": [
+        [
+          {
+            "node": "HTTP Qdrant Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Qdrant Upsert": {
+      "main": [
+        [
+          {
+            "node": "Respond Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "staticData": {}
+}
