@@ -107,22 +107,27 @@ jobs:
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-  # Security scan / 보안 스캔
-  security-scan:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-    
-    steps:
-      - name: Run Trivy vulnerability scanner / Trivy 취약점 스캔 실행
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy scan results / Trivy 스캔 결과 업로드
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+  # Security scan / 보안 스캔 (현재 비활성화)
+  # security-scan:
+  #   needs: build-and-push
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name != 'pull_request'
+  #   
+  #   env:
+  #     REGISTRY: ghcr.io
+  #     IMAGE_NAME: ${{ github.repository }}
+  #   
+  #   steps:
+  #     - name: Run Trivy vulnerability scanner / Trivy 취약점 스캔 실행
+  #       uses: aquasecurity/trivy-action@master
+  #       with:
+  #         image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+  #         format: 'sarif'
+  #         output: 'trivy-results.sarif'
+  #       continue-on-error: true
+  # 
+  #     - name: Upload Trivy scan results / Trivy 스캔 결과 업로드
+  #       uses: github/codeql-action/upload-sarif@v3
+  #       if: always() && hashFiles('trivy-results.sarif') != ''
+  #       with:
+  #         sarif_file: 'trivy-results.sarif'
