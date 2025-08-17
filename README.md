@@ -320,7 +320,7 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 
 ### How to add contributors automatically / 자동 기여자 추가 방법
 
-이 프로젝트는 [All Contributors Bot](https://allcontributors.org/)을 사용하여 기여자를 자동으로 관리할 수 있습니다:
+이 프로젝트는 [All Contributors Bot](https://allcontributors.org/)을 사용하여 기여자 문서화를 자동으로 관리하고 있습니다:
 
 1. **Bot 설치**: [All Contributors App](https://github.com/apps/allcontributors) GitHub App 설치
 2. **기여자 추가**: 댓글로 `@all-contributors please add @username for code`

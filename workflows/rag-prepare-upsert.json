@@ -1,292 +1,339 @@
 {
-  "name": "ollama-rag: n8n webhook(s) for RAG prepare + post-answer upsert (single workflow)",
+  "name": "Ollama RAG Prepare & Upsert n8n Workflow",
   "nodes": [
     {
       "parameters": {
+        "httpMethod": "POST",
         "path": "rag/prepare",
-        "httpMethod": "POST",
         "responseMode": "responseNode",
-        "options": {
-          "allowedMethods": [
-            "POST"
-          ],
-          "responseContentType": "application/json"
-        }
+        "options": {}
       },
-      "id": "1",
+      "id": "18857250-ffc9-440a-99cf-353c6b64fcc3",
       "name": "WH Prepare",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
       "position": [
-        260,
-        -40
+        -2176,
+        -288
       ],
-      "webhookId": "rag-prepare-01"
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "rag-prepare-01",
+      "onError": "continueRegularOutput",
+      "notes": "RAG 준비 엔드포인트 / RAG Prepare Endpoint\n\n한글: POST /rag/prepare로 들어오는 요청을 처리합니다.\n입력 형식:\n{\n  \"query\": \"검색할 질문\",\n  \"topk\": 12,\n  \"topn\": 5,\n  \"score_threshold\": 0.2,\n  \"session_id\": \"세션ID\",\n  \"thread_id\": \"스레드ID\"\n}\n\nEnglish: Handles incoming POST requests to /rag/prepare\nInput format:\n{\n  \"query\": \"question to search\",\n  \"topk\": 12,\n  \"topn\": 5,\n  \"score_threshold\": 0.2,\n  \"session_id\": \"session ID\",\n  \"thread_id\": \"thread ID\"\n}"
     },
     {
       "parameters": {
-        "functionCode": "const b = $json;\nlet query = b.query ?? (Array.isArray(b.messages) ? (b.messages[b.messages.length-1]?.content ?? '') : '');\nquery = String(query || '').slice(0, 4000);\nconst topk = Math.max(1, Math.min(64, Number(b.topk ?? 12)));\nconst topn = Math.max(1, Math.min(topk, Number(b.topn ?? 5)));\nconst score_threshold = Number(b.score_threshold ?? 0.2);\nreturn [{\n  query, topk, topn, score_threshold,\n  session_id: b.session_id ?? null,\n  thread_id: b.thread_id ?? null\n}];"
+        "jsCode": "// Code v2: return [{ json: {...} }], avoid ?? and ?.\nconst b = $json;\nlet query = '';\nif (typeof b.query === 'string' && b.query.length) {\n  query = b.query;\n} else if (Array.isArray(b.messages) && b.messages.length) {\n  const last = b.messages[b.messages.length - 1] || {};\n  query = (last && typeof last.content === 'string') ? last.content : '';\n}\nquery = String(query || '').slice(0, 4000);\nfunction toNumber(x, defV){ const n = Number(x); return Number.isFinite(n) ? n : defV; }\nconst topk = Math.max(1, Math.min(64, toNumber(b.topk, 12)));\nconst topn = Math.max(1, Math.min(topk, toNumber(b.topn, 5)));\nconst score_threshold = toNumber(b.score_threshold, 0.2);\nconst out = {\n  query: query,\n  topk: topk,\n  topn: topn,\n  score_threshold: score_threshold,\n  session_id: (b.session_id !== undefined && b.session_id !== null) ? b.session_id : null,\n  thread_id: (b.thread_id !== undefined && b.thread_id !== null) ? b.thread_id : null,\n};\nreturn [{ json: out }];"
       },
-      "id": "2",
+      "id": "1065380f-0470-4460-8a49-b060552956af",
       "name": "Fn Prepare Defaults",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 2,
       "position": [
-        520,
-        -40
-      ]
+        -1920,
+        -288
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "notes": "입력 데이터 처리 및 기본값 설정 / Input Processing & Default Values\n\n한글:\n- 쿼리 추출 (직접 또는 메시지에서)\n- topk: 벡터 검색할 문서 수 (1-64, 기본값: 12)\n- topn: 최종 반환할 문서 수 (기본값: 5)\n- score_threshold: 최소 유사도 점수 (기본값: 0.2)\n- 세션/스레드 ID 처리\n\nEnglish:\n- Extract query (direct or from messages)\n- topk: number of docs to search (1-64, default: 12)\n- topn: final docs to return (default: 5)\n- score_threshold: minimum similarity score (default: 0.2)\n- Handle session/thread IDs"
     },
     {
       "parameters": {
-        "authentication": "none",
-        "requestMethod": "POST",
+        "method": "POST",
         "url": "={{ $env.TEI_EMBED_URL + '/embed' }}",
-        "jsonParameters": true,
-        "options": {},
-        "responseFormat": "json",
-        "jsonBody": "={{ { inputs: [ $json.query ] } }}"
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { inputs: [ $json.query ] } }}",
+        "options": {}
       },
-      "id": "3",
+      "id": "00e53435-ca0a-4ac5-92f4-8ad61d31d10f",
       "name": "HTTP TEI Embed (query)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 5,
       "position": [
-        760,
-        -140
-      ]
+        -1680,
+        -384
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "onError": "continueRegularOutput",
+      "notes": "쿼리 임베딩 변환 / Query Embedding Conversion\n\n한글:\n- TEI (Text Embeddings Inference) 서버를 통해 쿼리를 벡터로 변환\n- 환경변수 TEI_EMBED_URL 필요\n- 입력: { \"inputs\": [\"검색할 텍스트\"] }\n- 출력: { \"embeddings\": [[벡터 배열]] }\n\nEnglish:\n- Convert query to vector using TEI server\n- Requires TEI_EMBED_URL environment variable\n- Input: { \"inputs\": [\"text to search\"] }\n- Output: { \"embeddings\": [[vector array]] }"
     },
     {
       "parameters": {
-        "authentication": "none",
-        "requestMethod": "POST",
+        "method": "POST",
         "url": "={{ $env.QDRANT_URL + '/collections/' + $env.QDRANT_COLLECTION + '/points/search' }}",
-        "jsonParameters": true,
-        "options": {},
-        "responseFormat": "json",
-        "jsonBody": "={{ { vector: ($json.embeddings?.[0] || $json.data?.[0]?.embedding || []), limit: $items(\"Fn Prepare Defaults\")[0].json.topk, with_payload: true, with_vectors: false } }}"
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { vector: ($json.embeddings && $json.embeddings[0]) ? $json.embeddings[0] : (($json.data && $json.data[0] && $json.data[0].embedding) ? $json.data[0].embedding : []), limit: $items('Fn Prepare Defaults')[0].json.topk, with_payload: true, with_vectors: false } }}",
+        "options": {}
       },
-      "id": "4",
+      "id": "95a4a371-9ffe-441e-8fb0-df353fd18eea",
       "name": "HTTP Qdrant Search",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 5,
       "position": [
-        1000,
-        -140
-      ]
+        -1440,
+        -384
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "onError": "continueRegularOutput",
+      "notes": "벡터 유사도 검색 / Vector Similarity Search\n\n한글:\n- Qdrant 벡터 데이터베이스에서 유사한 문서 검색\n- 환경변수: QDRANT_URL, QDRANT_COLLECTION\n- 쿼리 벡터와 가장 유사한 topk개 문서 반환\n- with_payload: true (메타데이터 포함)\n- with_vectors: false (벡터는 제외)\n\nEnglish:\n- Search similar documents in Qdrant vector database\n- Environment variables: QDRANT_URL, QDRANT_COLLECTION\n- Returns topk most similar documents to query vector\n- with_payload: true (include metadata)\n- with_vectors: false (exclude vectors)"
     },
     {
       "parameters": {
-        "functionCode": "const res = $json;\nconst arr = Array.isArray(res.result) ? res.result : (res.results || []);\nconst docs = [];\nconst doc_texts = [];\nfor (const h of arr) {\n  const txt = h?.payload?.text || '';\n  if (txt) {\n    docs.push({ id: h.id ?? h?.payload?.id ?? null, text: String(txt), score: h.score ?? null });\n    doc_texts.push(String(txt));\n  }\n}\nreturn [{ docs, doc_texts }];"
+        "jsCode": "// INPUT: Qdrant search resp\n// OUTPUT: { docs:[{id,text,score}], doc_texts:[...]} in json\nconst res = $json;\nconst arr = Array.isArray(res.result) ? res.result : (Array.isArray(res.results) ? res.results : []);\nconst docs = [];\nconst doc_texts = [];\nfor (const h of arr) {\n  const payload = (h && h.payload) ? h.payload : {};\n  const txt = (payload && typeof payload.text === 'string') ? payload.text : '';\n  if (txt) {\n    const id = (h && h.id !== undefined && h.id !== null) ? h.id : ((payload && payload.id !== undefined) ? payload.id : null);\n    const score = (typeof h.score === 'number') ? h.score : null;\n    docs.push({ id: id, text: String(txt), score: score });\n    doc_texts.push(String(txt));\n  }\n}\nreturn [{ json: { docs: docs, doc_texts: doc_texts } }];"
       },
-      "id": "5",
+      "id": "a1f49c9a-38ca-4dbe-b398-1f10fcf2cd00",
       "name": "Fn Doc Collect",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 2,
       "position": [
-        1220,
-        -140
-      ]
+        -1216,
+        -384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "notes": "검색 결과 문서 수집 / Search Results Collection\n\n한글:\n- Qdrant 검색 결과에서 문서 정보 추출\n- docs: [{id, text, score}] 형태로 구조화\n- doc_texts: 재랭킹용 텍스트 배열\n- 빈 텍스트는 제외\n\nEnglish:\n- Extract document info from Qdrant search results\n- Structure as docs: [{id, text, score}]\n- doc_texts: text array for reranking\n- Exclude empty texts"
     },
     {
       "parameters": {
-        "authentication": "none",
-        "requestMethod": "POST",
+        "method": "POST",
         "url": "={{ $env.TEI_RERANK_URL + '/rerank' }}",
-        "jsonParameters": true,
-        "options": {},
-        "responseFormat": "json",
-        "jsonBody": "={{ { query: $items(\"Fn Prepare Defaults\")[0].json.query, documents: $json.doc_texts } }}"
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: $items('Fn Prepare Defaults')[0].json.query, documents: $json.doc_texts } }}",
+        "options": {}
       },
-      "id": "6",
+      "id": "c893180d-d91b-4440-990a-30f148d895be",
       "name": "HTTP TEI Rerank",
+      "position": [
+        -992,
+        -384
+      ],
+      "retryOnFail": true,
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 5,
-      "position": [
-        1440,
-        -140
-      ]
+      "typeVersion": 4,
+      "onError": "continueRegularOutput",
+      "notes": "문서 재랭킹 / Document Reranking\n\n한글:\n- TEI 재랭킹 모델을 사용하여 문서 관련성 재평가\n- 환경변수 TEI_RERANK_URL 필요\n- 쿼리와 문서들의 관련성을 더 정확하게 계산\n- 입력: { \"query\": \"질문\", \"documents\": [\"문서1\", \"문서2\"] }\n- 출력: { \"results\": [{\"index\": 0, \"score\": 0.95}] }\n\nEnglish:\n- Re-evaluate document relevance using TEI reranking model\n- Requires TEI_RERANK_URL environment variable\n- More accurate relevance calculation between query and documents\n- Input: { \"query\": \"question\", \"documents\": [\"doc1\", \"doc2\"] }\n- Output: { \"results\": [{\"index\": 0, \"score\": 0.95}] }"
     },
     {
       "parameters": {
-        "mode": "combine"
+        "mode": "combine",
+        "options": {}
       },
-      "id": "7",
+      "id": "079dea39-73f0-41e9-b7ef-4513ea3a9853",
       "name": "Merge Rerank+Docs",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
       "position": [
-        1660,
-        -140
-      ]
+        -784,
+        -384
+      ],
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "notes": "재랭킹 결과와 문서 정보 병합 / Merge Reranking Results with Document Info\n\n한글: 재랭킹 점수와 원본 문서 정보를 결합\nEnglish: Combine reranking scores with original document information"
     },
     {
       "parameters": {
-        "mode": "combine"
+        "mode": "combine",
+        "options": {}
       },
-      "id": "8",
+      "id": "e6832ff7-ebdd-4b0f-b640-1c390ec3d47f",
       "name": "Merge +Defaults",
+      "position": [
+        -560,
+        -384
+      ],
       "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1880,
-        -140
-      ]
+      "typeVersion": 3,
+      "notes": "기본값과 결합 / Merge with Defaults\n\n한글: 기본 설정값(topn, threshold)과 문서 정보를 결합\nEnglish: Combine default settings (topn, threshold) with document info"
     },
     {
       "parameters": {
-        "functionCode": "const j = $json;\nconst docs = j.docs || [];\nconst topn = Number(j.topn ?? 5);\nconst thr = Number(j.score_threshold ?? 0.2);\nlet pairs = [];\nif (Array.isArray(j.results)) {\n  for (const r of j.results) {\n    const idx = r.index ?? r.documentIndex ?? 0;\n    const sc = r.score ?? r.relevance ?? 0;\n    const d = docs[idx];\n    if (d) pairs.push({ id: d.id, text: d.text, score: sc });\n  }\n} else if (Array.isArray(j.scores)) {\n  for (let i = 0; i < Math.min(docs.length, j.scores.length); i++) {\n    pairs.push({ id: docs[i].id, text: docs[i].text, score: j.scores[i] });\n  }\n}\npairs = pairs.filter(p => (p.score ?? 0) >= thr)\n             .sort((a,b)=> (b.score - a.score))\n             .slice(0, topn);\nreturn [{ context: pairs, docRefs: pairs.map(p=>({id:p.id, score:p.score})) }];"
+        "jsCode": "// INPUT: merged defaults + rerank + docs\n// OUTPUT: { context:[...], docRefs:[...] }\nconst j = $json;\nconst docs = Array.isArray(j.docs) ? j.docs : [];\nconst topn = Number.isFinite(Number(j.topn)) ? Number(j.topn) : 5;\nconst thr  = Number.isFinite(Number(j.score_threshold)) ? Number(j.score_threshold) : 0.2;\nlet pairs = [];\nif (Array.isArray(j.results)) {\n  for (const r of j.results) {\n    const idx = (r && (r.index !== undefined || r.documentIndex !== undefined)) ? (r.index !== undefined ? r.index : r.documentIndex) : 0;\n    const sc = (r && (typeof r.score === 'number' || typeof r.relevance === 'number')) ? (typeof r.score === 'number' ? r.score : r.relevance) : 0;\n    const d = docs[idx];\n    if (d) pairs.push({ id: d.id, text: d.text, score: sc });\n  }\n} else if (Array.isArray(j.scores)) {\n  for (let i = 0; i < docs.length && i < j.scores.length; i++) {\n    const sc = Number(j.scores[i]);\n    pairs.push({ id: docs[i].id, text: docs[i].text, score: Number.isFinite(sc) ? sc : 0 });\n  }\n}\npairs = pairs.filter(p => (typeof p.score === 'number' ? p.score : 0) >= thr).sort((a,b)=> b.score - a.score).slice(0, topn);\nreturn [{ json: { context: pairs, docRefs: pairs.map(p => ({ id: p.id, score: p.score })) } }];"
       },
-      "id": "9",
+      "id": "555388b8-b89e-4d06-82c0-0047a23e5f04",
       "name": "Fn Zip+Filter (topN, threshold)",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 2,
       "position": [
-        2100,
-        -140
-      ]
+        -336,
+        -384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "notes": "최종 문서 필터링 및 정렬 / Final Document Filtering & Sorting\n\n한글:\n- 재랭킹 점수와 원본 문서 정보 결합\n- score_threshold 이상의 문서만 선택\n- 점수 기준 내림차순 정렬\n- topn개 문서만 최종 선택\n- context: 전체 문서 정보\n- docRefs: ID와 점수만 포함한 참조 정보\n\nEnglish:\n- Combine reranking scores with original document info\n- Select documents above score_threshold\n- Sort by score in descending order\n- Select only topn documents\n- context: full document information\n- docRefs: reference info with ID and score only"
     },
     {
       "parameters": {
-        "responseBody": "={{ { context: $json.context, docRefs: $json.docRefs } }}",
         "options": {
-          "responseCode": 200
+          "responseCode": {
+            "values": {
+              "responseCode": 200
+            }
+          }
         }
       },
-      "id": "10",
+      "id": "b9335773-902f-4055-a887-fa72fa11a085",
       "name": "Respond Prepare",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 2,
       "position": [
-        2320,
-        -140
-      ]
+        -112,
+        -384
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "notes": "RAG 준비 응답 / RAG Prepare Response\n\n한글:\n- 최종 검색 결과를 JSON 형태로 반환\n- context: LLM이 사용할 문서 컨텍스트\n- docRefs: 참조된 문서들의 ID와 점수\n\n응답 형식:\n{\n  \"context\": [{\"id\": \"doc1\", \"text\": \"내용\", \"score\": 0.95}],\n  \"docRefs\": [{\"id\": \"doc1\", \"score\": 0.95}]\n}\n\nEnglish:\n- Return final search results in JSON format\n- context: document context for LLM to use\n- docRefs: IDs and scores of referenced documents\n\nResponse format:\n{\n  \"context\": [{\"id\": \"doc1\", \"text\": \"content\", \"score\": 0.95}],\n  \"docRefs\": [{\"id\": \"doc1\", \"score\": 0.95}]\n}"
     },
     {
       "parameters": {
-        "path": "rag/upsert",
         "httpMethod": "POST",
+        "path": "rag/upsert",
         "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3e059adf-e7b5-4467-880f-8af783c92b75",
+      "name": "WH Upsert",
+      "position": [
+        -2176,
+        176
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "rag-upsert-01",
+      "onError": "continueRegularOutput",
+      "notes": "RAG 업서트 엔드포인트 / RAG Upsert Endpoint\n\n한글: POST /rag/upsert로 들어오는 요청을 처리합니다.\nLLM의 답변을 벡터 데이터베이스에 저장하여 향후 RAG에 활용\n\n입력 형식:\n{\n  \"answer\": \"LLM이 생성한 답변\",\n  \"question\": \"원본 질문\",\n  \"refs\": [참조된 문서 정보],\n  \"session_id\": \"세션ID\",\n  \"thread_id\": \"스레드ID\",\n  \"id\": \"답변 고유ID (선택사항)\"\n}\n\nEnglish: Handles incoming POST requests to /rag/upsert\nStores LLM answers in vector database for future RAG use\n\nInput format:\n{\n  \"answer\": \"LLM generated answer\",\n  \"question\": \"original question\",\n  \"refs\": [referenced document info],\n  \"session_id\": \"session ID\",\n  \"thread_id\": \"thread ID\",\n  \"id\": \"unique answer ID (optional)\"\n}"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Upsert defaults processing\nconst b = $json;\nconst session_id = (b.session_id !== undefined && b.session_id !== null) ? b.session_id : null;\nconst thread_id = (b.thread_id !== undefined && b.thread_id !== null) ? b.thread_id : null;\nconst answer = String(b.answer || '').slice(0, 8000);\nconst question = String(b.question || '').slice(0, 4000);\nconst refs = Array.isArray(b.refs) ? b.refs : [];\nconst id = b.id || String(Date.now());\nreturn [{ json: { session_id: session_id, thread_id: thread_id, answer: answer, question: question, refs: refs, id: id } }];"
+      },
+      "id": "4656cf42-6fcb-447c-95c7-66571b958b71",
+      "name": "Fn Upsert Defaults",
+      "position": [
+        -1920,
+        176
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "notes": "업서트 데이터 처리 / Upsert Data Processing\n\n한글:\n- 답변 텍스트 길이 제한 (최대 8000자)\n- 질문 텍스트 길이 제한 (최대 4000자)\n- ID가 없으면 현재 타임스탬프 사용\n- 세션/스레드 ID 처리\n- 참조 문서 정보 처리\n\nEnglish:\n- Limit answer text length (max 8000 chars)\n- Limit question text length (max 4000 chars)\n- Use current timestamp if no ID provided\n- Handle session/thread IDs\n- Process reference document info"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TEI_EMBED_URL + '/embed' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { inputs: [ $json.answer ] } }}",
+        "options": {}
+      },
+      "id": "de518966-ef57-4ce9-92ee-d225a1024721",
+      "name": "HTTP TEI Embed (answer)",
+      "position": [
+        -1680,
+        112
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "onError": "continueRegularOutput",
+      "notes": "답변 임베딩 변환 / Answer Embedding Conversion\n\n한글:\n- LLM 답변을 벡터로 변환하여 데이터베이스 저장 준비\n- 같은 TEI 임베딩 서버 사용\n- 향후 이 답변이 다른 질문의 컨텍스트로 활용될 수 있음\n\nEnglish:\n- Convert LLM answer to vector for database storage\n- Uses same TEI embedding server\n- This answer can be used as context for future questions"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "options": {}
+      },
+      "id": "613072c9-7d13-4fe1-a8fa-ece8439caaf1",
+      "name": "Merge Upsert Defaults+Embed",
+      "position": [
+        -1456,
+        176
+      ],
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "notes": "업서트 기본값과 임베딩 결합 / Merge Upsert Defaults with Embedding\n\n한글: 처리된 업서트 데이터와 답변 임베딩을 결합\nEnglish: Combine processed upsert data with answer embedding"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Qdrant point\nconst j = $json;\nconst vector = (j.embeddings && j.embeddings[0]) ? j.embeddings[0] : ((j.data && j.data[0] && j.data[0].embedding) ? j.data[0].embedding : []);\nconst point = {\n  id: j.id,\n  vector: vector,\n  payload: {\n    session_id: j.session_id,\n    thread_id: j.thread_id,\n    role: 'assistant',\n    ts: Date.now(),\n    text: j.answer,\n    question: j.question,\n    refs: j.refs || []\n  }\n};\nreturn [{ json: { point: point } }];"
+      },
+      "id": "ed2bcaa0-f4a8-44d8-b3ca-cbbb7772b460",
+      "name": "Fn Build Qdrant Point",
+      "position": [
+        -1232,
+        176
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "notes": "Qdrant 포인트 구성 / Qdrant Point Construction\n\n한글:\n- Qdrant에 저장할 포인트 데이터 구조 생성\n- vector: 답변의 임베딩 벡터\n- payload: 메타데이터 (세션ID, 역할, 타임스탬프, 텍스트 등)\n- role: 'assistant' (LLM 답변임을 표시)\n- ts: 저장 시점의 타임스탬프\n\nEnglish:\n- Create point data structure for Qdrant storage\n- vector: embedding vector of the answer\n- payload: metadata (session ID, role, timestamp, text, etc.)\n- role: 'assistant' (indicates LLM answer)\n- ts: timestamp of storage"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.QDRANT_URL + '/collections/' + $env.QDRANT_COLLECTION + '/points?wait=true' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { points: [ $json.point ] } }}",
+        "options": {}
+      },
+      "id": "5e3d773e-e4b7-4118-b0f9-02ee18ab88e5",
+      "name": "HTTP Qdrant Upsert",
+      "position": [
+        -992,
+        176
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "onError": "continueRegularOutput",
+      "notes": "벡터 데이터베이스 저장 / Vector Database Storage\n\n한글:\n- 구성된 포인트를 Qdrant 컬렉션에 저장\n- wait=true: 저장 완료까지 대기\n- 기존 ID가 있으면 업데이트, 없으면 새로 생성\n- 이 데이터는 향후 RAG 검색에서 컨텍스트로 활용됨\n\nEnglish:\n- Store constructed point in Qdrant collection\n- wait=true: wait until storage is complete\n- Update if ID exists, create new if not\n- This data will be used as context in future RAG searches"
+    },
+    {
+      "parameters": {
         "options": {
-          "allowedMethods": [
-            "POST"
-          ],
-          "responseContentType": "application/json"
+          "responseCode": {
+            "values": {
+              "responseCode": 200
+            }
+          }
         }
       },
-      "id": "11",
-      "name": "WH Upsert",
-      "type": "n8n-nodes-base.webhook",
+      "id": "b0ea1d4e-674a-43db-94d6-9c91d7133b68",
+      "name": "Respond Upsert",
+      "position": [
+        -784,
+        176
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "notes": "업서트 완료 응답 / Upsert Completion Response\n\n한글:\n- 업서트 작업 완료를 클라이언트에 알림\n- 성공 시 { \"ok\": true, \"upserted\": 1 } 반환\n- HTTP 200 상태 코드\n\nEnglish:\n- Notify client of upsert operation completion\n- Returns { \"ok\": true, \"upserted\": 1 } on success\n- HTTP 200 status code"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "options": {}
+      },
+      "id": "5b2eb85b-5541-45b7-b9c2-570c3fdd56ce",
+      "name": "Merge +Defaults (prepare)",
+      "position": [
+        -784,
+        -208
+      ],
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "notes": "준비 단계 기본값 전달 / Pass Prepare Stage Defaults\n\n한글: 검색 설정값을 후속 단계로 전달\nEnglish: Pass search settings to subsequent stages"
+    },
+    {
+      "parameters": {
+        "content": "# 📚 RAG 워크플로우 사용법 / RAG Workflow Usage Guide\n\n## 🚀 빠른 시작 / Quick Start\n\n### 환경 변수 설정 / Environment Variables\n```bash\nTEI_EMBED_URL=http://localhost:8080      # 임베딩 서버\nTEI_RERANK_URL=http://localhost:8081     # 재랭킹 서버\nQDRANT_URL=http://localhost:6333         # Qdrant 벡터 DB\nQDRANT_COLLECTION=documents              # 컬렉션 이름\n```\n\n### 📝 API 엔드포인트 / Endpoints\n\n#### 1. 문서 검색 (RAG Prepare)\n```bash\nPOST /rag/prepare\n{\n  \"query\": \"검색할 질문\",\n  \"topk\": 12,\n  \"topn\": 5,\n  \"score_threshold\": 0.2\n}\n```\n\n#### 2. 답변 저장 (RAG Upsert)\n```bash\nPOST /rag/upsert\n{\n  \"answer\": \"LLM 생성 답변\",\n  \"question\": \"원본 질문\",\n  \"refs\": [\"참조 문서들\"]\n}\n```\n\n## 🔄 워크플로우 흐름 / Workflow Flow\n1. 🔍 **검색**: 질문 → 임베딩 → 벡터 검색 → 재랭킹 → 컨텍스트 반환\n2. 💾 **저장**: 답변 → 임베딩 → 벡터 DB 저장\n\n## ⚙️ 주요 설정 / Key Settings\n- **topk**: 벡터 검색할 문서 수 (1-64)\n- **topn**: 최종 반환할 문서 수\n- **score_threshold**: 최소 유사도 점수\n\n더 자세한 내용은 workflows/README.md 참조 📖",
+        "height": 1124,
+        "width": 528
+      },
+      "id": "sticky-note-readme",
+      "name": "README - RAG 워크플로우 사용법",
+      "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        260,
-        420
-      ],
-      "webhookId": "rag-upsert-01"
-    },
-    {
-      "parameters": {
-        "functionCode": "const b = $json;\nconst session_id = b.session_id ?? null;\nconst thread_id = b.thread_id ?? null;\nconst answer = String(b.answer || '').slice(0, 8000);\nconst question = String(b.question || '').slice(0, 4000);\nconst refs = Array.isArray(b.refs) ? b.refs : [];\nconst id = (b.id) || String(Date.now());\nreturn [{ session_id, thread_id, answer, question, refs, id }];"
-      },
-      "id": "12",
-      "name": "Fn Upsert Defaults",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 2,
-      "position": [
-        520,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "authentication": "none",
-        "requestMethod": "POST",
-        "url": "={{ $env.TEI_EMBED_URL + '/embed' }}",
-        "jsonParameters": true,
-        "options": {},
-        "responseFormat": "json",
-        "jsonBody": "={{ { inputs: [ $json.answer ] } }}"
-      },
-      "id": "13",
-      "name": "HTTP TEI Embed (answer)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 5,
-      "position": [
-        760,
-        360
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "combine"
-      },
-      "id": "14",
-      "name": "Merge Upsert Defaults+Embed",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        980,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "functionCode": "const j = $json;\nconst vector = j.embeddings?.[0] || j.data?.[0]?.embedding || [];\nconst point = {\n  id: j.id,\n  vector,\n  payload: {\n    session_id: j.session_id,\n    thread_id: j.thread_id,\n    role: 'assistant',\n    ts: Date.now(),\n    text: j.answer,\n    question: j.question,\n    refs: j.refs || []\n  }\n};\nreturn [{ point }];"
-      },
-      "id": "15",
-      "name": "Fn Build Qdrant Point",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "authentication": "none",
-        "requestMethod": "POST",
-        "url": "={{ $env.QDRANT_URL + '/collections/' + $env.QDRANT_COLLECTION + '/points?wait=true' }}",
-        "jsonParameters": true,
-        "options": {},
-        "responseFormat": "json",
-        "jsonBody": "={{ { points: [ $json.point ] } }}"
-      },
-      "id": "16",
-      "name": "HTTP Qdrant Upsert",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 5,
-      "position": [
-        1440,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "responseBody": "={{ { ok: true, upserted: 1 } }}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "17",
-      "name": "Respond Upsert",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 2,
-      "position": [
-        1660,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "combine"
-      },
-      "id": "18",
-      "name": "Merge +Defaults (prepare)",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1660,
-        40
+        -2880,
+        -560
       ]
     }
   ],
@@ -295,9 +342,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Fn Prepare Defaults",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -306,23 +353,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "HTTP TEI Embed (query)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Merge +Defaults (prepare)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Merge +Defaults",
-            "type": "main",
-            "index": 1
+            "type": "main"
           }
         ]
       ]
@@ -331,9 +364,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "HTTP Qdrant Search",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -342,9 +375,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Fn Doc Collect",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -353,23 +386,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "HTTP TEI Rerank",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Merge Rerank+Docs",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Merge +Defaults (prepare)",
-            "type": "main",
-            "index": 1
+            "type": "main"
           }
         ]
       ]
@@ -378,9 +397,9 @@
       "main": [
         [
           {
+            "index": 1,
             "node": "Merge Rerank+Docs",
-            "type": "main",
-            "index": 1
+            "type": "main"
           }
         ]
       ]
@@ -389,20 +408,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Merge +Defaults",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge +Defaults (prepare)": {
-      "main": [
-        [
-          {
-            "node": "Merge +Defaults",
-            "type": "main",
-            "index": 1
+            "type": "main"
           }
         ]
       ]
@@ -411,9 +419,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Fn Zip+Filter (topN, threshold)",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -422,9 +430,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Respond Prepare",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -433,9 +441,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Fn Upsert Defaults",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -444,9 +452,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "HTTP TEI Embed (answer)",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -455,9 +463,9 @@
       "main": [
         [
           {
+            "index": 1,
             "node": "Merge Upsert Defaults+Embed",
-            "type": "main",
-            "index": 1
+            "type": "main"
           }
         ]
       ]
@@ -466,16 +474,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Fn Build Qdrant Point",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Fn Build Qdrant Point",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -484,9 +485,9 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "HTTP Qdrant Upsert",
-            "type": "main",
-            "index": 0
+            "type": "main"
           }
         ]
       ]
@@ -495,18 +496,27 @@
       "main": [
         [
           {
+            "index": 0,
             "node": "Respond Upsert",
-            "type": "main",
-            "index": 0
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Merge +Defaults (prepare)": {
+      "main": [
+        [
+          {
+            "index": 1,
+            "node": "Merge +Defaults",
+            "type": "main"
           }
         ]
       ]
     }
   },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
   "pinData": {},
-  "staticData": {}
+  "meta": {
+    "instanceId": "f0c88043b37709424fce4a577f8f86cc883a838c35e83507d25d62c957b8fbde"
+  }
 }
