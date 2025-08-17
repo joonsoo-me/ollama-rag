@@ -146,7 +146,7 @@ dist
 
 # === Docker & Container ===
 # Docker
-.dockerignore
+# .dockerignore
 docker-compose.override.yml
 docker-compose.*.yml
 !docker-compose.yml
