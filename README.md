@@ -1,5 +1,5 @@
-# Ollama RAG (App with n8n Orchestration)
-An Ollama-compatible proxy app that preserves JSONL streaming while delegating Retrieval-Augmented Generation (RAG) preparation and post-upsert to n8n. Drop-in endpoint replacement for existing Ollama clients; switch the base URL to the app and get consistent context-aware answers with minimal client changes.
+# Local RAG (App with n8n Orchestration)
+An Open AI compatible proxy app that preserves JSONL streaming while delegating Retrieval-Augmented Generation (RAG) preparation and post-upsert to n8n. Drop-in endpoint replacement for existing Ollama clients; switch the base URL to the app and get consistent context-aware answers with minimal client changes.
 
 ## 📋 Prerequisites / 사전 요구사항
 
